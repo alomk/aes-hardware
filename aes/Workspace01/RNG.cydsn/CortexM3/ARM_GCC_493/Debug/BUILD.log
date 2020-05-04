@@ -1,0 +1,50 @@
+--------------- Build Started: 04/30/2020 03:50:00 Project: RNG, Configuration: ARM GCC 4.9-2015-q1-update Debug ---------------
+cydsfit.exe -.appdatapath "C:\Users\kazi\AppData\Local\Cypress Semiconductor\PSoC Creator\3.3" -.fdsnotice -.fdswarpdepfile=warp_dependencies.txt -.fdselabdepfile=elab_dependencies.txt -.fdsbldfile=generated_files.txt -p "C:\Users\kazi\Desktop\kovid\final project\Workspace01\RNG.cydsn\RNG.cyprj" -d CY8C5868AXI-LP035 -s "C:\Users\kazi\Desktop\kovid\final project\Workspace01\RNG.cydsn\Generated_Source\PSoC5" -- -yv2 -q10 -ygs -o2 -v3 -.fftcfgtype=LE
+Elaborating Design...
+HDL Generation ...
+Synthesis ...
+Place and Route ...
+Tech mapping ...
+Analog Placement ...
+Log: apr.M0058: The analog placement iterative improvement is 50% done. (App=cydsfit)
+Analog Routing ...
+Analog Code Generation ...
+Digital Placement ...
+Digital Routing ...
+Bitstream Generation ...
+Static timing analysis ...
+API Generation ...
+Dependency Generation ...
+Clean Temporary Files ...
+arm-none-eabi-gcc.exe -mcpu=cortex-m3 -mthumb -Wno-main -I. -IGenerated_Source\PSoC5 -Wa,-alh=.\CortexM3\ARM_GCC_493\Debug/main.lst -g -D DEBUG -Wall -ffunction-sections -Og -ffat-lto-objects -c .\main.c -o .\CortexM3\ARM_GCC_493\Debug\main.o
+.\main.c: In function 'RX_INT':
+.\main.c:17:11: warning: unused variable 'char_buf' [-Wunused-variable]
+     uint8 char_buf = UART_ReadRxData();
+           ^
+.\main.c: In function 'HexToByte':
+.\main.c:48:9: warning: implicit declaration of function 'sscanf' [-Wimplicit-function-declaration]
+         sscanf(hex_string+(2*i), "%2hh", &buf[i]);
+         ^
+.\main.c:48:9: warning: incompatible implicit declaration of built-in function 'sscanf'
+.\main.c:48:9: warning: conversion lacks type at end of format [-Wformat=]
+.\main.c:48:9: warning: too many arguments for format [-Wformat-extra-args]
+.\main.c: In function 'HexPrint':
+.\main.c:59:9: warning: implicit declaration of function 'sprintf' [-Wimplicit-function-declaration]
+         sprintf(ret+(i*2), "%02X", buf[i]);
+         ^
+.\main.c:59:9: warning: incompatible implicit declaration of built-in function 'sprintf'
+.\main.c: In function 'GetRandom':
+.\main.c:30:43: warning: 'inner_counter' may be used uninitialized in this function [-Wmaybe-uninitialized]
+                 ret = ret + ((curr > prev)<<inner_counter); // ret holds the running sum for our byte
+                                           ^
+.\main.c:30:36: warning: 'prev' may be used uninitialized in this function [-Wmaybe-uninitialized]
+                 ret = ret + ((curr > prev)<<inner_counter); // ret holds the running sum for our byte
+                                    ^
+arm-none-eabi-ar.exe -rs .\CortexM3\ARM_GCC_493\Debug\RNG.a .\CortexM3\ARM_GCC_493\Debug\cyfitter_cfg.o .\CortexM3\ARM_GCC_493\Debug\LCD_Char_1.o .\CortexM3\ARM_GCC_493\Debug\LCD_Char_1_PM.o .\CortexM3\ARM_GCC_493\Debug\IDAC8_1.o .\CortexM3\ARM_GCC_493\Debug\IDAC8_1_PM.o .\CortexM3\ARM_GCC_493\Debug\Pin_1.o .\CortexM3\ARM_GCC_493\Debug\ADC_DelSig_1.o .\CortexM3\ARM_GCC_493\Debug\ADC_DelSig_1_PM.o .\CortexM3\ARM_GCC_493\Debug\ADC_DelSig_1_INT.o .\CortexM3\ARM_GCC_493\Debug\LCD_Char_1_LCDPort.o .\CortexM3\ARM_GCC_493\Debug\ADC_DelSig_1_AMux.o .\CortexM3\ARM_GCC_493\Debug\ADC_DelSig_1_Ext_CP_Clk.o .\CortexM3\ARM_GCC_493\Debug\ADC_DelSig_1_IRQ.o .\CortexM3\ARM_GCC_493\Debug\ADC_DelSig_1_theACLK.o .\CortexM3\ARM_GCC_493\Debug\CyBootAsmGnu.o .\CortexM3\ARM_GCC_493\Debug\CyDmac.o .\CortexM3\ARM_GCC_493\Debug\CyFlash.o .\CortexM3\ARM_GCC_493\Debug\CyLib.o .\CortexM3\ARM_GCC_493\Debug\cyPm.o .\CortexM3\ARM_GCC_493\Debug\CySpc.o .\CortexM3\ARM_GCC_493\Debug\cyutils.o .\CortexM3\ARM_GCC_493\Debug\tx_int.o .\CortexM3\ARM_GCC_493\Debug\rx_int.o .\CortexM3\ARM_GCC_493\Debug\UART.o .\CortexM3\ARM_GCC_493\Debug\UART_PM.o .\CortexM3\ARM_GCC_493\Debug\UART_INT.o .\CortexM3\ARM_GCC_493\Debug\UART_BOOT.o .\CortexM3\ARM_GCC_493\Debug\UART_IntClock.o
+arm-none-eabi-ar.exe: creating .\CortexM3\ARM_GCC_493\Debug\RNG.a
+arm-none-eabi-gcc.exe -Wl,--start-group -o .\CortexM3\ARM_GCC_493\Debug\RNG.elf .\CortexM3\ARM_GCC_493\Debug\main.o .\CortexM3\ARM_GCC_493\Debug\cymetadata.o .\CortexM3\ARM_GCC_493\Debug\Cm3Start.o .\CortexM3\ARM_GCC_493\Debug\RNG.a "C:\Program Files (x86)\Cypress\PSoC Creator\3.3\PSoC Creator\psoc\content\cycomponentlibrary\CyComponentLibrary.cylib\CortexM3\ARM_GCC_493\Debug\CyComponentLibrary.a" -mcpu=cortex-m3 -mthumb -g -ffunction-sections -Og -l m -L Generated_Source\PSoC5 -Wl,-Map,.\CortexM3\ARM_GCC_493\Debug/RNG.map -T Generated_Source\PSoC5\cm3gcc.ld -specs=nano.specs -Wl,--gc-sections -Wl,--end-group
+cyelftool.exe -C "C:\Users\kazi\Desktop\kovid\final project\Workspace01\RNG.cydsn\CortexM3\ARM_GCC_493\Debug\RNG.elf" --flash_row_size 256 --flash_size 262144
+cyelftool.exe -S "C:\Users\kazi\Desktop\kovid\final project\Workspace01\RNG.cydsn\CortexM3\ARM_GCC_493\Debug\RNG.elf"
+Flash used: 10496 of 262144 bytes (4.0%).
+SRAM used: 2653 of 65536 bytes (4.0%). Stack: 2048 bytes. Heap: 128 bytes.
+--------------- Build Succeeded: 04/30/2020 03:50:21 ---------------
