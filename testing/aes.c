@@ -2,8 +2,7 @@
 #include <stdio.h>     /* for printf */
 #include <string.h>
 
-#define ROTL8(x,shift) ((uint8_t) ((x) << (shift)) | ((x) >> (8 - (shift))))
-#define ROTL32(x,shift) ((uint32_t) ((x) << (shift)) | ((x) >> (32 - (shift))))
+#define ROTL32(x,shift) ((uint32_t) ((x) >> (shift)) | ((x) << (32 - (shift))))
 
 typedef uint8_t u8;
 typedef uint32_t u32;
@@ -34,23 +33,23 @@ void run_key_schedule(u8* round_keys, u8* key) {
    u8 rcon[11] = {0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36};
    u8 rcon_buf[4] = {0x00, 0x00, 0x00, 0x00};
 
-   u8* frame = round_keys;
-
    // states needed to calculate next key
    u32 w_prev = 0;
    u32 w_in = 0;
    u32 w = 0;
    u32 w_buf = 0;
+   u32 rot_buf;
    
    int n = 256/32; // KEY_SIZE/32 = 8
 
    int counter = 0;
-   while(counter < 59) { //4*(ROUNDS) + 3
+   while(counter < 60) { //4*(ROUNDS) + 3
        if (counter < n) {
-           w = *((u32*) (key + counter*32));
+           w = *((u32*) (key + counter*4));
        } else if (counter % n == 0) {
            rcon_buf[0] = rcon[counter/n];
-           sub_word(ROTL32(w_prev, 8), &w_buf);
+           rot_buf = ROTL32(w_prev, 8);
+           sub_word(rot_buf, &w_buf);
            w = w_in ^ w_buf ^ *((u32*) rcon_buf);
        } else if (n > 6 && counter % n == 4) {
            sub_word(w_prev, &w_buf);
@@ -58,41 +57,32 @@ void run_key_schedule(u8* round_keys, u8* key) {
        } else {
            w = w_in ^ w_prev;
        }
+
+       memcpy(round_keys + counter*4, &w, 4);
     
        // updating state variables 
-       memcpy(frame, (u8*) &w, 32);
-       memcpy((u8*) &w_prev, frame, 32);
-       if (counter - n >= 0) {
-           memcpy((u8*) &w_in, 32*(counter - n) + round_keys, 32);
-       }
-
-       frame += 32;
+       w_prev = w;
        counter++;
+       
+       if (counter - n >= 0) {
+           memcpy((u8*) &w_in, 4*(counter - n) + round_keys, 4);
+       }
    }
 
-
-   hexprint(rcon,10);
 
 }
 
 int main () {
-  u8 key[256]; // key of all 0s
-  u8 round_keys[128*15];
+  u8 key[256] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f};
+  u8 round_keys[4*15];
 
-  memset(key, 0, 256);
+  memset(round_keys, 0, 4*15);
 
-  key[0] = 0xde;
-  key[1] = 0xad;
-  key[2] = 0xbe;
-  key[3]= 0xef;
-  memset(round_keys, 0, 128*15);
-
-  key[0] = 0xde;
-  key[1] = 0xad;
-  key[2] = 0xbe;
-  key[3]= 0xef;
 
   run_key_schedule(round_keys, key);
+  for (int i = 0; i < 15; i++) {
+      hexprint(round_keys + 16*i, 16);
+  }
 
   return(0);
 }
