@@ -3,6 +3,8 @@
 #include <string.h>
 
 #define ROTL32(x,shift) ((uint32_t) ((x) >> (shift)) | ((x) << (32 - (shift))))
+#define ROTR32(x,shift) ((uint32_t) ((x) << (shift)) | ((x) >> (32 - (shift))))
+// shifts are opposite due to endianness
 
 typedef uint8_t u8;
 typedef uint32_t u32;
@@ -19,7 +21,7 @@ void hexprint(char* buf, int len) {
     printf("\n");
 }
 
-
+// this function substitutes 4 bytes of w into dst using the sbox
 void sub_word(u32 w, u32* dst) {
     u8* tmp = (u8*) dst;
     u8* tmp2 = (u8*) &w;
@@ -29,27 +31,26 @@ void sub_word(u32 w, u32* dst) {
     tmp[3] = sbox[tmp2[3]];
 }
 
-void run_key_schedule(u8* round_keys, u8* key) {
+// this function takes a 256 bit key and produces 15 128-bit keys
+void KeySchedule(u8* round_keys, u8* key) {
    u8 rcon[11] = {0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36};
    u8 rcon_buf[4] = {0x00, 0x00, 0x00, 0x00};
 
-   // states needed to calculate next key
-   u32 w_prev = 0;
-   u32 w_in = 0;
-   u32 w = 0;
-   u32 w_buf = 0;
-   u32 rot_buf;
+   // states needed to calculate entire key schedule
+   u32 w_prev = 0; // previous word
+   u32 w_in = 0; // word at index i-n
+   u32 w = 0; // current word
+   u32 w_buf = 0; // word buffer for performing operations on
    
-   int n = 256/32; // KEY_SIZE/32 = 8
+   int n = 256/32; // key size in 32-bit words
 
    int counter = 0;
-   while(counter < 60) { //4*(ROUNDS) + 3
+   while(counter < 60) { //4*ROUNDS
        if (counter < n) {
            w = *((u32*) (key + counter*4));
        } else if (counter % n == 0) {
            rcon_buf[0] = rcon[counter/n];
-           rot_buf = ROTL32(w_prev, 8);
-           sub_word(rot_buf, &w_buf);
+           sub_word(ROTL32(w_prev, 8), &w_buf);
            w = w_in ^ w_buf ^ *((u32*) rcon_buf);
        } else if (n > 6 && counter % n == 4) {
            sub_word(w_prev, &w_buf);
@@ -69,20 +70,83 @@ void run_key_schedule(u8* round_keys, u8* key) {
        }
    }
 
+}
 
+// this function takes a 128-bit block and performs cyclic shifts as in the AES specification
+void ShiftRows(u32* block) {
+    // row 1 is not changed
+    block[1] = ROTL32(*(block+1), 8); // row 2 shifted by 1 byte
+    block[2] = ROTL32(*(block+2), 16); // by 2 bytes
+    block[3] = ROTL32(*(block+3), 24); // by 3 bytes
+}
+
+// this function takes a 128-bit block and performs the inverse cyclic shifts as in the AES specification
+void InverseShiftRows(u32* block) {
+    block[1] = ROTR32(*(block+1), 8); // row 2 shifted by 1 byte
+    block[2] = ROTR32(*(block+2), 16); // by 2 bytes
+    block[3] = ROTR32(*(block+3), 24); // by 3 bytes
+}
+
+// this function mixes a single column according to the matrix in the AES spec
+void mix_column(u8* col) {
+    u8 buf_a[4]; // copy of the original col
+    u8 buf_b[4]; // holds 
+    u8 h; // 0xff or 0x0 based on high bit of entry
+
+    int i = 0;
+    while (i < 4) {
+        buf_a[i] = col[i];
+        h = (u8)((signed char)col[i] >> 7); // 2's complement shift 
+        buf_b[i] = (col[i] << 1) ^ (0x1B & h); // multiply by 3 in galois field 
+
+        i++;
+    }
+
+    col[0] = buf_b[0] ^ buf_a[3] ^ buf_a[2] ^ buf_b[1] ^ buf_a[1]; /* 2 * a0 + a3 + a2 + 3 * a1 */
+    col[1] = buf_b[1] ^ buf_a[0] ^ buf_a[3] ^ buf_b[2] ^ buf_a[2]; /* 2 * a1 + a0 + a3 + 3 * a2 */
+    col[2] = buf_b[2] ^ buf_a[1] ^ buf_a[0] ^ buf_b[3] ^ buf_a[3]; /* 2 * a2 + a1 + a0 + 3 * a3 */
+    col[3] = buf_b[3] ^ buf_a[2] ^ buf_a[1] ^ buf_b[0] ^ buf_a[0]; /* 2 * a3 + a2 + a1 + 3 * a0 */
+}
+
+void MixColumns(u8* block) {
+   u8 col_buf[4];
+
+   int i = 0;
+   while (i < 4) {
+       col_buf[0] = block[i];
+       col_buf[1] = block[4+i];
+       col_buf[2] = block[8+i];
+       col_buf[3] = block[12+i];
+
+       mix_column(col_buf);
+
+       block[i] = col_buf[0];
+       block[4+i] = col_buf[1];
+       block[8+i] = col_buf[2];
+       block[12+i] = col_buf[3];
+
+       i++;
+   }
 }
 
 int main () {
   u8 key[256] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f};
   u8 round_keys[4*15];
+  KeySchedule(round_keys, key);
 
-  memset(round_keys, 0, 4*15);
+//  for (int i = 0; i < 15; i++)
+//    hexprint(round_keys+(16*i), 16);
+
+  u8 plaintext[16] = {0x0, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+
+  u32 block[4] = {0xdbf201c6,0x130a01c6,0x532201c6,0x455c01c6};
+  ShiftRows(block);
+  InverseShiftRows(block);
+  MixColumns(block);
+  hexprint((u8*)block, 16);
 
 
-  run_key_schedule(round_keys, key);
-  for (int i = 0; i < 15; i++) {
-      hexprint(round_keys + 16*i, 16);
-  }
+
 
   return(0);
 }
