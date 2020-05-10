@@ -21,6 +21,41 @@ void hexprint(char* buf, int len) {
     printf("\n");
 }
 
+// this function does multiplication of two numbers in the galois field used in aes
+u8 gmul(uint8_t a, uint8_t b) {
+        u8 p = 0;
+        u8 counter;
+        u8 hi_bit_set;
+        for (counter = 0; counter < 8; counter++) {
+                if (b & 1) 
+                        p ^= a;
+                hi_bit_set = (a & 0x80);
+                a <<= 1;
+                if (hi_bit_set) 
+                        a ^= 0x1b; /* x^8 + x^4 + x^3 + x + 1 */
+                b >>= 1;
+        }
+        return p;
+}
+
+// this function applys a column mixing matrix to a row of bytes
+void mix_column(unsigned char *r, int invert) {
+    uint8_t copy[4];
+    memcpy(copy, r, 4);
+
+    if (invert) {
+        r[0] = gmul(copy[0], 0xe) ^ gmul(copy[1],0xb) ^ gmul(copy[2],0xd) ^ gmul(copy[3], 0x9);
+        r[1] = gmul(copy[0], 0x9) ^ gmul(copy[1],0xe) ^ gmul(copy[2],0xb) ^ gmul(copy[3], 0xd);
+        r[2] = gmul(copy[0], 0xd) ^ gmul(copy[1],0x9) ^ gmul(copy[2],0xe) ^ gmul(copy[3], 0xb);
+        r[3] = gmul(copy[0], 0xb) ^ gmul(copy[1],0xd) ^ gmul(copy[2],0x9) ^ gmul(copy[3], 0xe);
+    } else {
+        r[0] = gmul(copy[0], 0x02) ^ gmul(copy[1],0x03) ^ copy[2] ^ copy[3];
+        r[1] = copy[0] ^ gmul(copy[1],0x02) ^ gmul(copy[2],0x03) ^ copy[3];
+        r[2] = copy[0] ^ copy[1] ^ gmul(copy[2],2) ^ gmul(copy[3],3);
+        r[3] = gmul(copy[0], 0x03) ^ copy[1] ^ copy[2] ^ gmul(copy[3], 0x02);
+    }
+}
+
 // this function substitutes 4 bytes of w into dst using the sbox
 void sub_word(u32 w, u32* dst) {
     u8* tmp = (u8*) dst;
@@ -72,61 +107,114 @@ void KeySchedule(u8* round_keys, u8* key) {
 
 }
 
-// this function takes a 128-bit block and performs cyclic shifts as in the AES specification
-void ShiftRows(u32* block) {
-    // row 1 is not changed
-    block[1] = ROTL32(*(block+1), 8); // row 2 shifted by 1 byte
-    block[2] = ROTL32(*(block+2), 16); // by 2 bytes
-    block[3] = ROTL32(*(block+3), 24); // by 3 bytes
+// this function takes a 128-bit block and performs right or left cyclic shifts as in the AES specification
+void ShiftRows(u8* block, int invert) {
+    u8 row[4];
+    u32* block_handle = (u32*) row;
+    
+    int i = 1; //row 1 is not changed
+    while(i < 4) {
+        // due to an aes block being numbered column wise, a "row" is actually a column
+       row[0] = block[i]; 
+       row[1] = block[4+i];
+       row[2] = block[8+i];
+       row[3] = block[12+i];
+    
+       if (invert) {
+          block_handle[0] = ROTR32(block_handle[0], 8*i); // rotate by 1, 2, or 3 bytes
+       } else {
+          block_handle[0] = ROTL32(block_handle[0], 8*i); 
+       }
+    
+       // writing our shifted rows back into the block
+       block[i] = row[0];
+       block[4+i] = row[1];
+       block[8+i] = row[2];
+       block[12+i] = row[3];
+        
+       i++;
+    }
 }
 
-// this function takes a 128-bit block and performs the inverse cyclic shifts as in the AES specification
-void InverseShiftRows(u32* block) {
-    block[1] = ROTR32(*(block+1), 8); // row 2 shifted by 1 byte
-    block[2] = ROTR32(*(block+2), 16); // by 2 bytes
-    block[3] = ROTR32(*(block+3), 24); // by 3 bytes
+
+void MixColumns(u8* block, int invert) {
+    mix_column(block, invert);
+    mix_column(block + 4, invert);
+    mix_column(block + 8, invert);
+    mix_column(block + 12, invert);
 }
 
-// this function mixes a single column according to the matrix in the AES spec
-void mix_column(u8* col) {
-    u8 buf_a[4]; // copy of the original col
-    u8 buf_b[4]; // holds 
-    u8 h; // 0xff or 0x0 based on high bit of entry
-
+void AddKey(u8* p, u8* key) {
     int i = 0;
-    while (i < 4) {
-        buf_a[i] = col[i];
-        h = (u8)((signed char)col[i] >> 7); // 2's complement shift 
-        buf_b[i] = (col[i] << 1) ^ (0x1B & h); // multiply by 3 in galois field 
-
+    while (i < 16) {
+        p[i] = p[i] ^ key[i];
         i++;
     }
-
-    col[0] = buf_b[0] ^ buf_a[3] ^ buf_a[2] ^ buf_b[1] ^ buf_a[1]; /* 2 * a0 + a3 + a2 + 3 * a1 */
-    col[1] = buf_b[1] ^ buf_a[0] ^ buf_a[3] ^ buf_b[2] ^ buf_a[2]; /* 2 * a1 + a0 + a3 + 3 * a2 */
-    col[2] = buf_b[2] ^ buf_a[1] ^ buf_a[0] ^ buf_b[3] ^ buf_a[3]; /* 2 * a2 + a1 + a0 + 3 * a3 */
-    col[3] = buf_b[3] ^ buf_a[2] ^ buf_a[1] ^ buf_b[0] ^ buf_a[0]; /* 2 * a3 + a2 + a1 + 3 * a0 */
 }
 
-void MixColumns(u8* block) {
-   u8 col_buf[4];
+// this function runs in reverse of encrypt block
+void DecryptBlock(u8* block, u8* round_keys) {
+   int j = 0;
+   int i = 13;
 
-   int i = 0;
-   while (i < 4) {
-       col_buf[0] = block[i];
-       col_buf[1] = block[4+i];
-       col_buf[2] = block[8+i];
-       col_buf[3] = block[12+i];
+   // adding first round key
+   AddKey(block, round_keys + 14*16);
+   ShiftRows(block, 1);
 
-       mix_column(col_buf);
+   while (j < 16) {
+       block[j] = inverse_sbox[block[j]];
+       j++;
+   }
 
-       block[i] = col_buf[0];
-       block[4+i] = col_buf[1];
-       block[8+i] = col_buf[2];
-       block[12+i] = col_buf[3];
+   j = 0;
+   while (i > 0) {
+       AddKey(block, round_keys + i*16); // add key step
 
+       MixColumns(block, 1); // inverse mix columns step
+       ShiftRows(block, 1); // inverse shift rows step
+       
+       j = 0;
+       while (j < 16) {
+           block[j] = inverse_sbox[block[j]]; // inverse substitution step 
+           j++;
+       }
+
+       i--;
+   }
+
+   AddKey(block, round_keys); // add first round key 
+
+}
+
+void EncryptBlock(u8* block, u8* round_keys) {
+
+   // adding first round key
+   AddKey(block, round_keys);
+
+   int j = 0;
+   int i = 1;
+   while (i < 14) {
+       while (j < 16) {
+           block[j] = sbox[block[j]]; // substitution step 
+           j++;
+       }
+
+       ShiftRows(block, 0); // shift rows step
+       MixColumns(block, 0); // mix columns step
+       AddKey(block, round_keys + i*16); // add key step
+
+       j = 0;
        i++;
    }
+
+   // final round
+   while (j < 16) {
+       block[j] = sbox[block[j]]; // substitution step 
+       j++;
+   }
+
+   ShiftRows(block, 0);
+   AddKey(block, round_keys + 14*16); // add final key
 }
 
 int main () {
@@ -134,16 +222,14 @@ int main () {
   u8 round_keys[4*15];
   KeySchedule(round_keys, key);
 
-//  for (int i = 0; i < 15; i++)
-//    hexprint(round_keys+(16*i), 16);
-
   u8 plaintext[16] = {0x0, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
 
-  u32 block[4] = {0xdbf201c6,0x130a01c6,0x532201c6,0x455c01c6};
-  ShiftRows(block);
-  InverseShiftRows(block);
-  MixColumns(block);
-  hexprint((u8*)block, 16);
+  EncryptBlock(plaintext, round_keys);
+  hexprint(plaintext, 16);
+  DecryptBlock(plaintext, round_keys);
+  hexprint(plaintext, 16);
+
+
 
 
 
